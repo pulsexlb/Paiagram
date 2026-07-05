@@ -9,6 +9,7 @@ mod widgets;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 use bevy::ecs::entity::MapEntities;
@@ -40,6 +41,9 @@ use wasm_bindgen::JsCast;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod mod_ui;
+
 use crate::tabs::text::TextMessage;
 use crate::widgets::TimeDragValue;
 pub struct UiPlugin;
@@ -66,6 +70,8 @@ impl Plugin for UiPlugin {
                         .run_if(resource_exists::<paiagram_rw::save::LoadedScene>),
                     update_timer,
                     update_selected_items,
+                    #[cfg(not(target_arch = "wasm32"))]
+                    sync_mod_tabs,
                 ),
             );
     }
@@ -431,6 +437,7 @@ macro_rules! for_all_tabs {
             MainTab::PriorityGraph($t) => $body,
             MainTab::Text($t) => $body,
             MainTab::Station($t) => $body,
+            MainTab::ModTab($t) => $body,
         }
     };
 }
@@ -448,6 +455,7 @@ macro_rules! for_all_tab_types {
             MainTab::PriorityGraph(_) => PriorityGraphTab::$body,
             MainTab::Text(_) => TextTab::$body,
             MainTab::Station(_) => StationTab::$body,
+            MainTab::ModTab(_) => ModTabWidget::$body,
         }
     };
 }
@@ -464,6 +472,7 @@ pub(crate) enum MainTab {
     PriorityGraph(PriorityGraphTab),
     Text(TextTab),
     Station(StationTab),
+    ModTab(ModTabWidget),
 }
 
 impl MapEntities for MainTab {
@@ -478,6 +487,12 @@ pub(crate) struct MainUiState {
     #[deref]
     tree: Tree<MainTab>,
     maximized: Option<TileId>,
+    /// tab_ids of mod tabs the user explicitly closed.
+    #[serde(default)]
+    hidden_mod_tabs: HashSet<String>,
+    /// tab_ids for which we've ever created a ModTab tile.
+    #[serde(default)]
+    seen_mod_tabs: HashSet<String>,
 }
 
 impl MainUiState {
@@ -513,6 +528,8 @@ impl Default for MainUiState {
         Self {
             tree: Tree::new_tabs("main", vec![MainTab::Start(StartTab::default())]),
             maximized: None,
+            hidden_mod_tabs: HashSet::new(),
+            seen_mod_tabs: HashSet::new(),
         }
     }
 }
@@ -539,6 +556,11 @@ fn open_or_focus_tab(
     mut aus: ResMut<AdditionalUiState>,
 ) {
     for msg in messages.read() {
+        // If this is a ModTab, unhide it so sync_mod_tabs won't skip recreation.
+        if let MainTab::ModTab(mod_tab) = &msg.0 {
+            mus.hidden_mod_tabs.remove(&mod_tab.tab_id);
+        }
+
         let pane = &msg.0; // your pane data
 
         let focused_id = if let Some(tile_id) = mus.tree.tiles.find_pane(pane) {
@@ -654,6 +676,36 @@ impl<'w> MainTabViewer<'w> {
                     .write_message(OpenOrFocus(MainTab::Text(TextTab::new(Some(e)))));
             }
         });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            ui.separator();
+            ui.menu_button(tr!("menu-mods"), |ui| {
+                // Collect mod tab info first (immutable borrow), then open (mutable).
+                let tabs: Vec<(String, String)> = self
+                    .world
+                    .query::<&mod_ui::ModTab>()
+                    .iter(self.world)
+                    .map(|t| (t.tab_id.clone(), t.title.clone()))
+                    .collect();
+
+                if tabs.is_empty() {
+                    ui.label("(no mods)");
+                } else {
+                    for (tab_id, title) in &tabs {
+                        let label: &str = if title.is_empty() { tab_id } else { title };
+                        if ui.button(label).clicked() {
+                            self.world.write_message(OpenOrFocus(MainTab::ModTab(
+                                ModTabWidget {
+                                    tab_id: tab_id.clone(),
+                                    title: title.clone(),
+                                },
+                            )));
+                            ui.close();
+                        }
+                    }
+                }
+            });
+        }
     }
 }
 
@@ -1168,6 +1220,91 @@ pub fn show_ui(ui: &mut Ui, world: &mut World, cpu_time: Option<f32>) {
                 });
         })
     });
+}
+
+/// Sync `ModTab` ECS entities with dynamic tabs in `MainUiState`.
+///
+/// Lifecycle:
+/// - If a `ModTab` entity exists and a tile for it is already present,
+///   only the title is updated.
+/// - If the entity was despawned, its tile is removed and tracking cleaned.
+/// - If the entity exists but its tile was removed by the user (closed),
+///   the tab_id is added to `hidden_mod_tabs` and not re-created.
+/// - A first-seen entity creates a tile and marks the tab_id as seen.
+#[cfg(not(target_arch = "wasm32"))]
+fn sync_mod_tabs(
+    mod_tab_query: Query<&mod_ui::ModTab>,
+    mut main_ui: ResMut<MainUiState>,
+) {
+    use std::collections::{HashMap, HashSet};
+
+    // Build desired set from ECS entities.
+    let desired: HashMap<String, String> = mod_tab_query
+        .iter()
+        .map(|t| (t.tab_id.clone(), t.title.clone()))
+        .collect();
+
+    // Phase 1: scan current tiles, group by tab_id, detect stale tiles.
+    let mut existing_tiles: HashMap<String, Vec<egui_tiles::TileId>> = HashMap::new();
+    let mut stale: Vec<(egui_tiles::TileId, String)> = Vec::new();
+    for (id, tile) in main_ui.tree.tiles.iter() {
+        if let egui_tiles::Tile::Pane(MainTab::ModTab(w)) = tile {
+            if desired.contains_key(&w.tab_id) {
+                existing_tiles
+                    .entry(w.tab_id.clone())
+                    .or_default()
+                    .push(*id);
+            } else {
+                stale.push((*id, w.tab_id.clone()));
+            }
+        }
+    }
+
+    // Remove stale tiles (entity despawned) and clean up tracking.
+    for (id, tab_id) in &stale {
+        main_ui.tree.tiles.remove(*id);
+        main_ui.hidden_mod_tabs.remove(tab_id);
+        main_ui.seen_mod_tabs.remove(tab_id);
+    }
+
+    // Phase 2: update titles of existing tiles.
+    for (tab_id, ids) in &existing_tiles {
+        if let Some(new_title) = desired.get(tab_id) {
+            for id in ids {
+                if let Some(egui_tiles::Tile::Pane(MainTab::ModTab(w))) =
+                    main_ui.tree.tiles.get_mut(*id)
+                {
+                    if &w.title != new_title {
+                        w.title = new_title.clone();
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 3: handle entities without tiles.
+    for (tab_id, title) in &desired {
+        if existing_tiles.contains_key(tab_id) {
+            continue; // already has a tile
+        }
+
+        if main_ui.hidden_mod_tabs.contains(tab_id) {
+            continue; // user explicitly closed this tab
+        }
+
+        if main_ui.seen_mod_tabs.contains(tab_id) {
+            // Tile disappeared but entity persists — user closed it.
+            main_ui.hidden_mod_tabs.insert(tab_id.clone());
+            continue;
+        }
+
+        // First appearance — create tile and mark as seen.
+        main_ui.seen_mod_tabs.insert(tab_id.clone());
+        main_ui.push_to_focused_leaf(MainTab::ModTab(ModTabWidget {
+            tab_id: tab_id.clone(),
+            title: title.clone(),
+        }));
+    }
 }
 
 fn sync_ui(InRef(ctx): InRef<Context>, preferences: Res<UserPreferences>) {

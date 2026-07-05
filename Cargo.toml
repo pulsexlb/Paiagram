@@ -81,6 +81,7 @@ wasm-bindgen-futures = "0.4"
 
 # WASM mod runtime
 bevy-moder-runtime = { path = "../bevy-moder/crates/bevy-moder-runtime" }
+ctor = "0.4"
 
 [patch.crates-io]
 epaint_default_fonts = { path = "crates/epaint_default_fonts" }

@@ -8,6 +8,7 @@ use egui_i18n::tr;
 pub(crate) mod classes;
 pub(crate) mod diagram;
 pub(crate) mod graph;
+pub(crate) mod mod_tab;
 pub(crate) mod priority_graph;
 pub(crate) mod route_timetable;
 pub(crate) mod settings;
@@ -20,6 +21,7 @@ pub(crate) mod all_tabs {
     pub(crate) use super::classes::ClassesTab;
     pub(crate) use super::diagram::DiagramTab;
     pub(crate) use super::graph::GraphTab;
+    pub(crate) use super::mod_tab::ModTabWidget;
     pub(crate) use super::priority_graph::PriorityGraphTab;
     pub(crate) use super::route_timetable::RouteTimetableTab;
     pub(crate) use super::settings::SettingsTab;

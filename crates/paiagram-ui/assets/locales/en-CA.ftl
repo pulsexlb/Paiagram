@@ -156,6 +156,8 @@ menu-sync-system-clock = Sync with system clock
 menu-maximized-view = Maximized view
 menu-undo = Undo
 menu-redo = Redo
+menu-mods = Mods
+menu-no-mods = (no mods)
 
 # Classes Tab
 tab-classes = Classes
