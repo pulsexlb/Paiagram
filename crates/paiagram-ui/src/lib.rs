@@ -1206,12 +1206,13 @@ fn build_font_definitions(sarasa: Option<Vec<u8>>) -> egui::FontDefinitions {
         );
     }
 
-    fonts.font_data.insert(
-        "dia_pro".to_owned(),
-        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
-            "../assets/fonts/DiaPro-Regular.ttf"
-        ))),
-    );
+    // FIX: i dont know why ws add 'assets/fonts' to git ignore so i'll just comment this out
+    // fonts.font_data.insert(
+    //     "dia_pro".to_owned(),
+    //     std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+    //         "../assets/fonts/DiaPro-Regular.ttf"
+    //     ))),
+    // );
 
     if has_sarasa {
         fonts

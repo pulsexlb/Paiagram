@@ -44,6 +44,9 @@ smallvec.workspace = true
 vec1.workspace = true
 walkers = { version = "0.53.0", features = ["mvt"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy-moder-runtime.workspace = true
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys.workspace = true
 serde_html_form = "0.4.0"

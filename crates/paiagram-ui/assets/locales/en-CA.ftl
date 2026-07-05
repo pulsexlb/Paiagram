@@ -193,6 +193,8 @@ settings-on = On
 settings-lod-mode = LOD Mode
 settings-lod-2x = 2×
 settings-lod-4x = 4×
+settings-mods = Mods
+settings-no-mods-found = No mods found in the mods directory.
 
 # Station Tab
 tab-station = Station

@@ -20,7 +20,7 @@ categories = ["visualization"]
 [workspace.dependencies]
 # ECS and states
 bevy = {
-  version = "0.18.0",
+  version = "0.18",
   default-features = false,
   features = [
     "bevy_color",
@@ -79,12 +79,18 @@ vec1 = "1.12.1"
 wasm-bindgen = "=0.2.122"
 wasm-bindgen-futures = "0.4"
 
+# WASM mod runtime
+bevy-moder-runtime = { path = "../bevy-moder/crates/bevy-moder-runtime" }
+
 [patch.crates-io]
 epaint_default_fonts = { path = "crates/epaint_default_fonts" }
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
-opt-level = 1
+opt-level = 0
+debug = 1
+codegen-units = 16
+lto = false
 
 # Enable a large amount of optimization in the dev profile for dependencies.
 [profile.dev.package."*"]

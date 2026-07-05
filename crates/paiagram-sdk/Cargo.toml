@@ -1,0 +1,10 @@
+[package]
+name = "paiagram-sdk"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+description = "SDK for developing Paiagram mods"
+license.workspace = true
+
+[dependencies]
+bevy-moder-sdk = { path = "../../../bevy-moder/crates/bevy-moder-sdk" }

@@ -8,6 +8,7 @@ pub mod graph;
 pub mod i18n;
 pub mod import;
 pub mod interval;
+pub mod mods;
 pub mod plugin;
 pub mod problems;
 pub mod route;

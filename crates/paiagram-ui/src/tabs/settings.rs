@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use super::Tab;
 
+#[cfg(not(target_arch = "wasm32"))]
+use paiagram_core::mods::{AvailableMods, ModAction, ModActionQueue, ModNameRegistry};
+
 #[derive(Serialize, Deserialize, Clone, Default, MapEntities, PartialEq)]
 pub(crate) struct SettingsTab;
 
@@ -18,6 +21,10 @@ impl Tab for SettingsTab {
     fn main_display(&mut self, world: &mut World, ui: &mut Ui) {
         if let Err(e) = world.run_system_cached_with(show_settings, ui) {
             bevy::log::error!("UI Error while displaying settings page: {}", e)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Err(e) = world.run_system_cached_with(show_mod_settings, ui) {
+            bevy::log::error!("UI Error while displaying mod settings: {}", e)
         }
     }
     fn title(&self) -> egui::WidgetText {
@@ -98,4 +105,48 @@ fn show_settings(
     });
     ui.heading(tr!("settings-project-settings"));
     ui.text_edit_multiline(&mut settings.remarks);
+}
+
+/// Mod management section — only compiled on native targets.
+#[cfg(not(target_arch = "wasm32"))]
+fn show_mod_settings(
+    InMut(ui): InMut<Ui>,
+    mut preferences: ResMut<UserPreferences>,
+    mut action_queue: ResMut<ModActionQueue>,
+    available: Res<AvailableMods>,
+    registry: Res<ModNameRegistry>,
+) {
+    ui.separator();
+    ui.heading(tr!("settings-mods"));
+
+    if available.mods.is_empty() {
+        ui.label(tr!("settings-no-mods-found"));
+        return;
+    }
+
+    for mod_entry in &available.mods {
+        // Display name derived from file path — no dedicated field.
+        let display_name = std::path::Path::new(&mod_entry.path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
+
+        // A mod is considered enabled if its path is in the registry
+        // (meaning it has been successfully loaded).
+        let is_loaded = registry.path_to_name.contains_key(&mod_entry.path);
+        let mut enabled = is_loaded || preferences.enabled_mods.contains(&mod_entry.path);
+        let prev = enabled;
+
+        ui.checkbox(&mut enabled, display_name);
+        if enabled && !prev {
+            preferences.enabled_mods.push(mod_entry.path.clone());
+            action_queue.push(ModAction::Load(mod_entry.path.clone()));
+        } else if !enabled && prev {
+            preferences.enabled_mods.retain(|p| p != &mod_entry.path);
+            // Resolve the actual mod name for unloading.
+            if let Some(actual_name) = registry.path_to_name.get(&mod_entry.path) {
+                action_queue.push(ModAction::Unload(actual_name.clone()));
+            }
+        }
+    }
 }

@@ -47,6 +47,8 @@ impl PaiagramApp {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(LogPlugin::default());
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_plugins(paiagram_core::mods::PaiagramModsPlugin);
         app.add_plugins((
             paiagram_ui::UiPlugin,
             entry::EntryPlugin,

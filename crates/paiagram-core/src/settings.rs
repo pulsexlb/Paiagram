@@ -50,6 +50,8 @@ pub struct UserPreferences {
     pub developer_mode: bool,
     pub antialiasing_mode: AntialiasingMode,
     pub level_of_detail_mode: LevelOfDetailMode,
+    /// Names of WASM mods that should be loaded.
+    pub enabled_mods: Vec<String>,
 }
 
 impl Default for UserPreferences {
@@ -60,6 +62,7 @@ impl Default for UserPreferences {
             developer_mode: cfg!(debug_assertions),
             antialiasing_mode: AntialiasingMode::default(),
             level_of_detail_mode: LevelOfDetailMode::default(),
+            enabled_mods: Vec::new(),
         }
     }
 }
