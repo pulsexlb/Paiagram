@@ -5613,6 +5613,7 @@ version = "0.1.3"
 dependencies = [
  "bevy",
  "bevy-moder-runtime",
+ "ctor",
  "derive_more",
  "egui",
  "egui-i18n",

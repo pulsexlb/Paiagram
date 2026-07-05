@@ -1298,12 +1298,9 @@ fn sync_mod_tabs(
             continue;
         }
 
-        // First appearance — create tile and mark as seen.
+        // First appearance — mark as seen+hidden, don't create tile.
         main_ui.seen_mod_tabs.insert(tab_id.clone());
-        main_ui.push_to_focused_leaf(MainTab::ModTab(ModTabWidget {
-            tab_id: tab_id.clone(),
-            title: title.clone(),
-        }));
+        main_ui.hidden_mod_tabs.insert(tab_id.clone());
     }
 }
 

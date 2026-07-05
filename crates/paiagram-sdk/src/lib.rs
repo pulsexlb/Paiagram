@@ -2,4 +2,5 @@
 
 pub use bevy_moder_sdk::*;
 
+pub mod station;
 pub mod ui;

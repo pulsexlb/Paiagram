@@ -163,6 +163,7 @@ impl<'w, 'q> PlatformQueryItem<'w, 'q> {
     }
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), bevy_moder_runtime::register_event)]
 #[derive(Event)]
 pub struct CreateNewStation {
     pub name: Option<String>,
